@@ -102,12 +102,12 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         # assert miu_eta.shape == (hidden_dim, num_movies)
         s_j = np.sum((miu_eta * embeddings).T[:, None, :] * embeddings.T[:, :, None], axis=0)
         
-        inv_matrix_s_post = inv_matrix_s + 6*s_i + 2*s_j/args.N
+        inv_matrix_s_post = inv_matrix_s + 2*s_i  # + 2*s_j/args.N
         matrix_s = np.linalg.inv(inv_matrix_s_post)
         # assert matrix_s.shape == (hidden_dim, hidden_dim)
         reward = np.array([1.0 if i in test_items else 0.0 for i in s_inx])
         
-        m_i = np.sum(np.tile((reward+1./2), (hidden_dim, 1))*x, axis=1)
+        m_i = np.sum(np.tile((reward+3./2), (hidden_dim, 1))*x, axis=1)
         # assert m_i.shape == (hidden_dim, )
         m_j = np.sum(embeddings, axis=1)
         # assert m_j.shape == (hidden_dim, )
@@ -123,6 +123,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         inter_set = set(s_new).intersection(set(list(test_items.keys())))
         prec_curr = float(len(inter_set)) / float(args.num_recommendation)
         prec.append(prec_curr)
+        
         inter_set_all = set(s_all).intersection(set(list(test_items.keys())))
         prec_curr_all = float(len(inter_set_all)) / float(
             args.num_recommendation*args.num_bandit_iter)
@@ -132,7 +133,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         nor_embs = np.delete(nor_embs, s_inx, 0)
         new_index = np.delete(new_index, s_inx)
         
-    return np.array(prec_all)
+    return np.array(prec)
 
 
 if __name__ == '__main__':

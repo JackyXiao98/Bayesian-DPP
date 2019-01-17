@@ -177,6 +177,7 @@ def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketc
 		prec_curr = float(len(inter_set)) / float(args.num_recommendation)
 		# print(t, prec_curr)
 		prec.append(prec_curr)
+		
 	return np.array(prec)
 
 
@@ -282,7 +283,7 @@ if __name__ == '__main__':
 		length = 0.
 		for user in test_user_ratings.keys():
 			# prec = c2ucb_dpp_sketched(user_embs[:, user], movie_embs, test_user_ratings[user], args, num=args.num_bandit_iter)
-			if len(test_user_ratings[user]) > 100:
+			if len(test_user_ratings[user]) > 150:
 				prec = c2ucb_dpp(user_embs[:, user], movie_embs, test_user_ratings[user], args,
 								num=args.num_bandit_iter)
 				# prec = c2ucb(user_embs[:, user], movie_embs, test_user_ratings[user],

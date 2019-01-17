@@ -20,7 +20,9 @@ def fast_greedy_map(scores, movie_embs, K, theta):
 	alpha = theta / (1 - theta)
 	# vec = alpha * scores
 	vec = 1.0 / (1.0 + np.exp(-scores))
-	vec = vec**(alpha)
+	vec = np.sqrt(vec)*np.exp(scores)
+	# vec = np.exp(scores)
+	vec = vec**alpha
 
 	for k in range(1, K):
 		Z = Z - set(Y)
