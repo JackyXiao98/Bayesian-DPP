@@ -37,7 +37,7 @@ def fast_greedy_map(scores, movie_embs, K, theta):
 			else:
 				ei = (Lji - np.sum(np.array(C[i]) * np.array(C[j]))) / (D[j]**(0.5))
 			C[i].append(ei)
-			D[i] = D[i] - ei**(2)
+			D[i] = D[i] - ei**2
 		ii = np.array(list(Z))
 		jj = np.argmax(D[ii])
 		j = ii[jj]
@@ -82,7 +82,7 @@ def fast_window_map_dpp(scores, movie_embs, w_size, N, theta):
 			V[T-1, :T] = np.array(C[j] + [D[j]**(0.5)])
 
 		else:
-			V[:w_size-1, :w_size-1] = V1
+			V[:w_size-1, :w_size-1] = V
 			V[w_size-1, :] = np.array(C[j] + [D[j]**(0.5)])
 
 		Z = Z - set(Y)

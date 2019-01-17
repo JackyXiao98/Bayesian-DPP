@@ -56,6 +56,43 @@ def miu(c, x):
     return 1./(2*x)*(part_a-part_b)
 
 
+def bayes_greedy_map(scores, movie_embs, K, theta):
+    """
+        movie_embs: m * d
+    """
+    C = defaultdict(list)
+    alpha = theta / (1 - theta)
+    vec = rho(scores)
+    vec = np.exp(scores)
+
+    D = vec * vec
+    D = D * np.sum(movie_embs * movie_embs, axis=1)
+    j = np.argmax(D)
+    Y = [j]               # the selected set
+    m = scores.shape[0]
+    Z = set(range(m))     # the remained items
+    for k in range(1, K):
+        Z = Z - set(Y)
+        for i in Z:
+            # pdb.set_trace()
+            Sji = (np.sum(movie_embs[j] * movie_embs[i]) + 1) / 2
+            # Lji = scores[j] * scores[i] * Sji
+            Lji = vec[j] * vec[i] * Sji
+            # pdb.set_trace()
+            if len(C[i]) == 0 or len(C[j]) == 0:
+                ei = Lji / (D[j] ** 0.5)
+            else:
+                ei = (Lji - np.sum(np.array(C[i]) * np.array(C[j]))) / (D[j] ** 0.5)
+            C[i].append(ei)
+            D[i] = D[i] - ei ** 2
+        ii = np.array(list(Z))
+        jj = np.argmax(D[ii]+rho(scores)[ii])
+        j = ii[jj]
+        Y.append(j)
+
+    return Y
+
+
 def bayesian_dpp(embeddings, new_index, test_items, args,
                  num=10, lamb_da=100):
     """
@@ -81,7 +118,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         p_hat = rho(np.dot(theta_hat, embeddings))
         
         # get recommendation set s
-        s_inx = fast_greedy_map(p_hat, nor_embs, args.num_recommendation, args.dpp_theta)
+        s_inx = bayes_greedy_map(p_hat, nor_embs, args.num_recommendation, args.dpp_theta)
 
         x = embeddings[:, np.array(s_inx)]
         # x = nor_embs[:, np.array(s_inx)]
@@ -133,7 +170,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         nor_embs = np.delete(nor_embs, s_inx, 0)
         new_index = np.delete(new_index, s_inx)
         
-    return np.array(prec)
+    return np.array(prec_all)
 
 
 if __name__ == '__main__':

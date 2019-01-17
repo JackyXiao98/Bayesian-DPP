@@ -17,12 +17,12 @@ def parameter_setting():
 	parser.add_argument('--sigma', default=1.)
 	parser.add_argument('--num_recommendation', default=5)
 	parser.add_argument('--hidden_dim', default=10)
-	parser.add_argument('--user_dim', default=5331)
-	parser.add_argument('--movie_dim', default=3468)
+	parser.add_argument('--user_dim', default=4831)
+	parser.add_argument('--movie_dim', default=3497)
 	parser.add_argument('--num_bandit_iter', default=20)
 	parser.add_argument('--dpp_theta', default=0.5)
 	parser.add_argument('--dpp_w_size', default=5)
-	parser.add_argument('--N', default=3468.)
+	parser.add_argument('--N', default=3497.)
 	return parser.parse_args()
 
 
@@ -73,6 +73,45 @@ def fd_sketching(St, sketch_m, num_rec, lamb_da):
 			rho2[i] = 1.0 / lamb_da
 	# pdb.set_trace()
 	return rho1.reshape(m, 1) * vh, rho2.reshape(m, 1)
+
+
+def rho(x):
+	return np.where(x > 0, 1. / (1. + np.exp(-x)), np.exp(x) / (np.exp(x) + 1.))
+
+
+def bayes_greedy_map(scores, movie_embs, K, theta):
+	"""
+		movie_embs: m * d
+	"""
+	C = defaultdict(list)
+	alpha = theta / (1 - theta)
+	vec = np.abs(scores)**alpha
+
+	D = vec * vec
+	D = D * np.sum(movie_embs * movie_embs, axis=1)
+	j = np.argmax(D)
+	Y = [j]  # the selected set
+	m = scores.shape[0]
+	Z = set(range(m))  # the remained items
+	for k in range(1, K):
+		Z = Z - set(Y)
+		for i in Z:
+			# pdb.set_trace()
+			Sji = (np.sum(movie_embs[j] * movie_embs[i]) + 1) / 2
+			# Lji = scores[j] * scores[i] * Sji
+			Lji = vec[j] * vec[i] * Sji
+			# pdb.set_trace()
+			if len(C[i]) == 0 or len(C[j]) == 0:
+				ei = Lji / (D[j] ** 0.5)
+			else:
+				ei = (Lji - np.sum(np.array(C[i]) * np.array(C[j]))) / (D[j] ** 0.5)
+			C[i].append(ei)
+			D[i] = D[i] - ei ** 2
+		ii = np.array(list(Z))
+		jj = np.argmax(D[ii])
+		j = ii[jj]
+		Y.append(j)
+	return Y
 
 
 def c2ucb(user_emb, movie_embs, test_items, args, num=10, sim=None, lamb_da=100):
@@ -131,7 +170,10 @@ def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketc
 	hidden_dim, num_movies = movie_embs.shape
 	matrix_v = lamb_da * np.identity(hidden_dim, dtype=np.float32)
 	vector_b = np.zeros(shape=hidden_dim, dtype=np.float32)
+	new_index = np.arange(0, args.movie_dim)
 	prec = []
+	prec_all = []
+	s_all = []
 	
 	# feature normalization
 	nor_embs = movie_embs.T.copy()
@@ -140,8 +182,8 @@ def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketc
 	
 	for t in range(num):
 		alpha_t = f_alpha(d=hidden_dim, t=t, m=num_movies, sigma=args.sigma,
-		                  lam_da=args.lam_da, s=1)
-		
+					lam_da=args.lam_da, s=1)
+
 		# t1 = time.clock()
 		inv_matrix_v = np.linalg.inv(matrix_v)
 		# print("1 time used:%s" % (time.clock() - t1))
@@ -155,7 +197,7 @@ def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketc
 		
 		# get recommendation set s
 		# t1 = time.clock()
-		s_inx = fast_greedy_map(r_hat, nor_embs, args.num_recommendation, args.dpp_theta)
+		s_inx = bayes_greedy_map(r_hat, nor_embs, args.num_recommendation, args.dpp_theta)
 		# s_inx = fast_window_map_dpp(r_hat, nor_embs, args.dpp_w_size, args.num_recommendation, args.dpp_theta)
 		
 		# print("time used:%s" % (time.clock() - t1))
@@ -173,12 +215,25 @@ def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketc
 		vector_b = vector_b + np.dot(x, reward)
 		# pdb.set_trace()
 		# compute precision
-		inter_set = set(s_inx).intersection(set(list(test_items.keys())))
+		s_new = s_inx.copy()
+		for i in range(args.dpp_w_size):
+			s_new[i] = new_index[s_inx[i]]
+			s_all.append(s_new[i])
+
+		inter_set = set(s_new).intersection(set(list(test_items.keys())))
 		prec_curr = float(len(inter_set)) / float(args.num_recommendation)
-		# print(t, prec_curr)
 		prec.append(prec_curr)
+
+		inter_set_all = set(s_all).intersection(set(list(test_items.keys())))
+		prec_curr_all = float(len(inter_set_all)) / float(
+			args.num_recommendation * args.num_bandit_iter)
+		prec_all.append(prec_curr_all)
+
+		movie_embs = np.delete(movie_embs, s_inx, 1)
+		nor_embs = np.delete(nor_embs, s_inx, 0)
+		new_index = np.delete(new_index, s_inx)
 		
-	return np.array(prec)
+	return np.array(prec_all)
 
 
 def c2ucb_dpp_sketched(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketch_m=3):
