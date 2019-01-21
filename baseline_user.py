@@ -79,7 +79,7 @@ def rho(x):
 	return np.where(x > 0, 1. / (1. + np.exp(-x)), np.exp(x) / (np.exp(x) + 1.))
 
 
-def bayes_greedy_map(scores, movie_embs, K, theta):
+def base_greedy_map(scores, movie_embs, K, theta):
 	"""
 		movie_embs: m * d
 	"""
@@ -162,7 +162,7 @@ def c2ucb(user_emb, movie_embs, test_items, args, num=10, sim=None, lamb_da=100)
 	return np.array(prec)
 
 
-def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketch_m=5):
+def c2ucb_dpp(movie_embs, test_items, args, num=10, lamb_da=100, sketch_m=5):
 	"""
 		user_emb: user embedding, shape (d, 1)
 		movie_embs: movie embeddings, shape (m, d)
@@ -197,7 +197,7 @@ def c2ucb_dpp(user_emb, movie_embs, test_items, args, num=10, lamb_da=100, sketc
 		
 		# get recommendation set s
 		# t1 = time.clock()
-		s_inx = bayes_greedy_map(r_hat, nor_embs, args.num_recommendation, args.dpp_theta)
+		s_inx = base_greedy_map(r_hat, nor_embs, args.num_recommendation, args.dpp_theta)
 		# s_inx = fast_window_map_dpp(r_hat, nor_embs, args.dpp_w_size, args.num_recommendation, args.dpp_theta)
 		
 		# print("time used:%s" % (time.clock() - t1))
@@ -268,7 +268,7 @@ def c2ucb_dpp_sketched(user_emb, movie_embs, test_items, args, num=10, lamb_da=1
 		
 		# get recommendation set s
 		# t1 = time.clock()
-		s_inx = fast_greedy_map(r_hat, nor_embs, args.num_recommendation, args.dpp_theta)
+		s_inx = base_greedy_map(r_hat, nor_embs, args.num_recommendation, args.dpp_theta)
 		# s_inx = fast_window_map_dpp(r_hat, nor_embs, args.dpp_w_size, args.num_recommendation, args.dpp_theta)
 		
 		# print("time used:%s" % (time.clock() - t1))
@@ -339,7 +339,7 @@ if __name__ == '__main__':
 		for user in test_user_ratings.keys():
 			# prec = c2ucb_dpp_sketched(user_embs[:, user], movie_embs, test_user_ratings[user], args, num=args.num_bandit_iter)
 			if len(test_user_ratings[user]) > 150:
-				prec = c2ucb_dpp(user_embs[:, user], movie_embs, test_user_ratings[user], args,
+				prec = c2ucb_dpp(movie_embs, test_user_ratings[user], args,
 								num=args.num_bandit_iter)
 				# prec = c2ucb(user_embs[:, user], movie_embs, test_user_ratings[user],
 				# 				args, num=args.num_bandit_iter, sim=sim_mat)

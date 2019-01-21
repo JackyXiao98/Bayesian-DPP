@@ -10,7 +10,7 @@ import time
 
 def parameter_setting():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--is_log', default=False)
+    parser.add_argument('--is_log', default=True)
     parser.add_argument('--random_state', default=0)
     parser.add_argument('--verbose', default=2)
     parser.add_argument('--lam_da', default=10.0)
@@ -94,7 +94,7 @@ def bayes_greedy_map(scores, movie_embs, K, theta):
 
 
 def bayesian_dpp(embeddings, new_index, test_items, args,
-                 num=10, lamb_da=100):
+                 num=10, lamb_da=0.1):
     """
         user_emb: user embedding, shape (d, 1)
         movie_embs: movie embeddings, shape (d, m)
@@ -170,7 +170,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         nor_embs = np.delete(nor_embs, s_inx, 0)
         new_index = np.delete(new_index, s_inx)
         
-    return np.array(prec_all)
+    return np.array(prec)
 
 
 if __name__ == '__main__':
@@ -185,23 +185,24 @@ if __name__ == '__main__':
     movie_embs = np.load("ml_1m_user/ml_1m_movie_emb_10.npy").T
     sim_mat = np.dot(movie_embs.T, movie_embs)
     
-    for theta in [0.9]:
+    for l in [0.1]:
         test_precision = np.zeros(args.num_bandit_iter)
-        args.dpp_theta = theta
+        args.dpp_theta = 0.9
         t1 = time.clock()
         length = 0.
         for user in test_user_ratings.keys():
             index = np.arange(0, args.movie_dim)
-            if len(test_user_ratings[user]) > 150:
+            if len(test_user_ratings[user]) > 100:
                 mv_embs = movie_embs.copy()
                 prec = bayesian_dpp(mv_embs, index,
-                                    test_user_ratings[user], args, num=args.num_bandit_iter)
+                                    test_user_ratings[user], args,
+                                    num=args.num_bandit_iter, lamb_da=l)
                 print(user)
                 print(prec)
                 test_precision += prec
                 length += 1
             
-        print("lambda:{0}, test_precision:{1}".format(args.lam_da, test_precision / length))
+        print("lambda:{0}, test_precision:{1}".format(l, test_precision / length))
         print("time used:%s" % (time.clock() - t1))
     
 
