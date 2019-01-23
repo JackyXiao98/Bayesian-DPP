@@ -4,28 +4,30 @@ import numpy as np
 from utils import logging
 from collections import defaultdict
 import time
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 def parameter_setting():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--is_log', default=True)
+    parser.add_argument('--is_log', default=False)
     parser.add_argument('--random_state', default=0)
     parser.add_argument('--verbose', default=2)
     parser.add_argument('--lam_da', default=0.1)
     parser.add_argument('--sigma', default=1.)
     parser.add_argument('--num_recommendation', default=5)
     parser.add_argument('--hidden_dim', default=10)
-    parser.add_argument('--user_dim', default=4831)
-    parser.add_argument('--movie_dim', default=3497)
+    parser.add_argument('--user_dim', default=4760)
+    parser.add_argument('--movie_dim', default=3543)
     parser.add_argument('--num_bandit_iter', default=10)
-    parser.add_argument('--dpp_theta', default=0.5)
+    parser.add_argument('--dpp_theta', default=0.9)
     parser.add_argument('--dpp_w_size', default=5)
-    parser.add_argument('--N', default=3497.)
+    parser.add_argument('--N', default=3543.)
     return parser.parse_args()
 
 
 def f_user_ratings_new():
-    file_name = "ml_1m_user/ml_1m_user_test.txt"
+    # file_name = "ml_1m_user/ml_1m_user_test.txt"
+    file_name = "ml_1m/ml-1m_tmp_0.7_10_test.txt"
     user_history = defaultdict(lambda: defaultdict(int))
     with open(file_name, 'r') as inf:
         for line in inf:
@@ -49,6 +51,19 @@ def miu(c, x):
     return 1./(2*x)*(part_a-part_b)
 
 
+def diversity(s_inx, X):
+    """
+        s_inx: the selected item set, a numpy vector
+        X: the item feature matrix, shape (d, m)
+        The similarities between items are measured using cosine similarity.
+    """
+    S = cosine_similarity(X[:, s_inx].T)
+    ii, jj = np.triu_indices(len(s_inx), k=1)
+    vec = S[ii, jj]
+    div = 1 - np.mean(vec)
+    return div
+
+
 def bayes_greedy_map(scores, movie_embs, K, theta):
     """
         movie_embs: m * d
@@ -56,7 +71,7 @@ def bayes_greedy_map(scores, movie_embs, K, theta):
     C = defaultdict(list)
     alpha = theta / (1 - theta)
     vec = np.sqrt(rho(scores))
-    vec = vec*np.exp(9*scores)
+    vec = np.exp(alpha*scores)
 
     D = vec * vec
     D = D * np.sum(movie_embs * movie_embs, axis=1)
@@ -80,7 +95,7 @@ def bayes_greedy_map(scores, movie_embs, K, theta):
             D[i] = D[i] - ei ** 2
         ii = np.array(list(Z))
         # greedy search for the next item
-        jj = np.argmax(D[ii])
+        jj = np.argmax(2*np.log(D)[ii]+np.log(rho(scores))[ii])
         j = ii[jj]
         Y.append(j)
 
@@ -99,6 +114,8 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
     prec = []
     prec_all = []
     s_all = []
+    recall = []
+    div = []
     
     # feature normalization
     nor_embs = embeddings.T.copy()
@@ -108,7 +125,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
     for t in range(num):
         # theta_hat = np.random.multivariate_normal(vector_m, matrix_s)
         theta_hat = vector_m
-        p_hat = rho(np.dot(theta_hat, embeddings))
+        p_hat = np.dot(theta_hat, embeddings)
         
         # get recommendation set s
         s_inx = bayes_greedy_map(p_hat, nor_embs, args.num_recommendation, args.dpp_theta)
@@ -137,7 +154,7 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
         reward = np.array([1.0 if i in test_items else 0.0 for i in s_inx])
         
         m_i = np.sum(np.tile((reward+3./2), (hidden_dim, 1))*x, axis=1)
-        # m_j = np.sum(embeddings, axis=1)
+        # m_j = np.sum(embeddings, axix`s=1)
         
         # here we get updated mean vector m
         vector_m_post = np.dot(inv_matrix_s, vector_m)+m_i
@@ -161,12 +178,21 @@ def bayesian_dpp(embeddings, new_index, test_items, args,
             args.num_recommendation*args.num_bandit_iter)
         prec_all.append(prec_curr_all)
         
+        # compute recall
+        s_test = set(list(test_items.keys()))
+        recall_curr = float(len(inter_set)) / float(len(s_test))
+        recall.append(recall_curr)
+        
+        # calculate the diversity
+        div_curr = diversity(s_inx, embeddings)
+        div.append(div_curr)
+        
         # delete the recommended itmes
         embeddings = np.delete(embeddings, s_inx, 1)
         nor_embs = np.delete(nor_embs, s_inx, 0)
         new_index = np.delete(new_index, s_inx)
         
-    return np.array(prec)
+    return np.array(prec), np.array(recall), np.array(div)
 
 
 if __name__ == '__main__':
@@ -177,28 +203,40 @@ if __name__ == '__main__':
         output_path = logging(file_name, verbose=2)
 
     test_user_ratings = f_user_ratings_new()
-    user_embs = np.load("ml_1m_user/ml_1m_user_emb_10.npy").T
-    movie_embs = np.load("ml_1m_user/ml_1m_movie_emb_10.npy").T
+    # user_embs = np.load("ml_1m_user/ml_1m_user_emb_10.npy").T
+    # movie_embs = np.load("ml_1m_user/ml_1m_movie_emb_10.npy").T
+    user_embs = np.load("ml_1m/lmf_ml-1m_tmp_0.7_10_dim10_user_embs.npy").T
+    movie_embs = np.load("ml_1m/lmf_ml-1m_tmp_0.7_10_dim10_item_embs.npy").T
     sim_mat = np.dot(movie_embs.T, movie_embs)
     
     for l in [0.1]:
+        print(l)
         test_precision = np.zeros(args.num_bandit_iter)
-        args.dpp_theta = 0.9
+        test_recall = np.zeros(args.num_bandit_iter)
+        test_diversity = np.zeros(args.num_bandit_iter)
+        args.dpp_theta = 0.5
         t1 = time.clock()
         length = 0.
         for user in test_user_ratings.keys():
             index = np.arange(0, args.movie_dim)
-            if len(test_user_ratings[user]) > 20:
+            if len(test_user_ratings[user]) >= 100:
                 mv_embs = movie_embs.copy()
-                prec = bayesian_dpp(mv_embs, index,
+                prec, rec, div = bayesian_dpp(mv_embs, index,
                                     test_user_ratings[user], args,
                                     num=args.num_bandit_iter, lamb_da=l)
                 print(user)
                 print(prec)
+                # print(rec)
+                # print(div)
                 test_precision += prec
+                test_recall += rec
+                test_diversity += div
                 length += 1
             
-        print("lambda:{0}, test_precision:{1}".format(l, test_precision / length))
+        print("lambda:{0}, ".format(l))
+        print("test_precision:{0}".format(test_precision / length))
+        # print("test_recall:{0}".format(test_recall / length))
+        # print("test_diversity:{0}".format(test_diversity / length))
         print("time used:%s" % (time.clock() - t1))
     
 
