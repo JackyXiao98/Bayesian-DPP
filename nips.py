@@ -10,7 +10,7 @@ import pdb
 
 def parameter_setting():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--is_log', default=True)
+    parser.add_argument('--is_log', default=False)
     parser.add_argument('--random_state', default=0)
     parser.add_argument('--verbose', default=2)
     parser.add_argument('--lam_da', default=0.1)

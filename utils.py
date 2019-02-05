@@ -108,15 +108,15 @@ def create_result_dirs(output_path, file_name, myfunc_list=[], verbose=0):
         os.makedirs(output_path)
 
 
-        myfunc_list += ['data.py', 'tf_net_new.py']
+        myfunc_list += []
         for func in myfunc_list:
             func_full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), func)
             cmd = 'cp ' + func_full_path + ' "' + output_path + '"'
-            os.popen(cmd)
+            # os.popen(cmd)
 
         run_file_full_path = os.path.join(output_path, file_name)
         cmd = 'cp ' + file_name + ' "' + run_file_full_path + '"'
-        os.popen(cmd)
+        # os.popen(cmd)
 
 def logging(file_name=None, cuda=None, verbose=0, test_err=None, output_path=None, myfunc_list=[]):
     if output_path == None:
