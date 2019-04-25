@@ -15,19 +15,18 @@ def parameter_setting():
     parser.add_argument('--verbose', default=2)
     parser.add_argument('--lam_da', default=0.1)
     parser.add_argument('--sigma', default=1.)
-    parser.add_argument('--num_recommendation', default=5)
+    parser.add_argument('--num_recommendation', default=10)
     parser.add_argument('--hidden_dim', default=10)
     parser.add_argument('--user_dim', default=4831)
     parser.add_argument('--movie_dim', default=3496)
     parser.add_argument('--num_bandit_iter', default=10)
     parser.add_argument('--dpp_theta', default=0.5)
-    parser.add_argument('--dpp_w_size', default=5)
+    parser.add_argument('--dpp_w_size', default=10)
     return parser.parse_args()
 
 
 def f_train_ratings():
     file_name = "ml_1m_0.8/ml-1m_tmp_0.8_10_train.txt"
-    # file_name = "ml_1m/ml-1m_tmp_0.7_10_test.txt"
     user_history = defaultdict(lambda: defaultdict(int))
     with open(file_name, 'r') as inf:
         for line in inf:
@@ -39,7 +38,6 @@ def f_train_ratings():
 
 def f_user_ratings():
     file_name = "ml_1m_user_new/ml-1m_user_0.8_test.txt"
-    # file_name = "ml_1m_0.8/ml-1m_tmp_0.8_10_test.txt"
     user_history = defaultdict(lambda: defaultdict(int))
     with open(file_name, 'r') as inf:
         for line in inf:
@@ -138,31 +136,24 @@ def nips(embs_c, embs_e, test_items, args,
         s_inx = []
         for number in range(5):
             theta_hat_c = vector_m_c
-            p_hat_c = np.dot(theta_hat_c, nor_embs_c.T)   # d * (d, m) = (m)
+            p_hat_c = np.dot(theta_hat_c, embs_c)
             theta_hat_e = vector_m_e
-            p_hat_e = np.dot(theta_hat_e, nor_embs_e.T)   # d * (d, m) = (m)
+            p_hat_e = np.dot(theta_hat_e, embs_e)
     
             can_items = can_items - set(rec_items)
             kk = np.array(list(can_items))
-    
-            # if t == 0 and user_emb is not None:
-            #     s_inx = mf_recommendation(user_emb, embs_c, can_items, size=5)
-            # else:
-            #     # get recommendation set s then delete it from the candidate items
-            #     s_tmp = greedy_search(p_hat_c[kk], p_hat_e[kk], args.num_recommendation)
-            #     s_inx = [kk[i] for i in s_tmp]
-            # # print(s_inx)
-            
+
             item_tmp = greedy_search(p_hat_c[kk], p_hat_e[kk])
             item = kk[item_tmp]
             rec_items.extend([item])
             s_inx.append(item)
     
-            x_c = nor_embs_c.T[:, item]
+            x_c = embs_c[:, item]
             m_c = vector_m_c.reshape(hidden_dim, 1)
             xi_tmp_c = np.dot(x_c.T, matrix_s_c+np.dot(m_c, m_c.T))            # shape=(m_s, d)
             xi_c = np.sqrt(np.dot(xi_tmp_c, x_c))                     # shape=(m_s)
-            x_e = nor_embs_e.T[:, item]
+
+            x_e = embs_e[:, item]
             m_e = vector_m_e.reshape(hidden_dim, 1)
             xi_tmp_e = np.dot(x_e.T, matrix_s_e+np.dot(m_e, m_e.T))            # shape=(m_s, d)
             xi_e = np.sqrt(np.dot(xi_tmp_e, x_e))                     # shape=(m_s)
@@ -224,21 +215,16 @@ if __name__ == '__main__':
         output_path = logging(file_name, verbose=2)
 
     test_user_ratings = f_user_ratings()
-    # train_user_ratings = f_train_ratings()
-    # user_embs = np.load("ml_1m/lmf_ml-1m_tmp_0.7_10_dim10_item_embs.npy").T
-    # movie_embs = np.load("ml_1m/lmf_ml-1m_tmp_0.7_10_dim10_user_embs.npy").T
-    # user_embs = np.load("ml_1m_0.8/lmf_ml-1m_tmp_0.8_10_dim10_user_embs.npy").T
-    # movie_embs = np.load("ml_1m_0.8/lmf_ml-1m_tmp_0.8_10_dim10_item_embs.npy").T
-    # movie_cate_sim = np.load("ml_1m_0.8/ml-1m_tmp_0.8_10_item_sim.npy")
+    movie_cate_sim = np.load("ml_1m_0.8/ml-1m_tmp_0.8_10_item_sim.npy")
     user_embs = np.load("ml_1m_user_new/bpr_ml-1m_user_0.8_dim10_user_embs.npy").T
     movie_embs = np.load("ml_1m_user_new/bpr_ml-1m_user_0.8_dim10_item_embs.npy").T
     args.user_dim = user_embs.shape[1]
     args.movie_dim = movie_embs.shape[1]
     sim_mat = np.dot(movie_embs.T, movie_embs)
 
-    for theta in [4]:
-        print(theta)
-        l = 1.
+    for l in [1]:
+        print(l)
+        theta = 4
         test_precision = np.zeros(args.num_bandit_iter)
         test_recall = np.zeros(args.num_bandit_iter)
         test_diversity = np.zeros(args.num_bandit_iter)
@@ -253,17 +239,15 @@ if __name__ == '__main__':
         length = 0.
         length_low = 0.
         for user in test_user_ratings.keys():
-            if len(test_user_ratings[user]) >= 20:
+            if len(test_user_ratings[user]) >= 0:
                 print(user)
                 mv_embs = movie_embs.copy()
                 prec, rec, div, cate_div = nips(mv_embs, mv_embs, test_user_ratings[user], args,
                                                 num=args.num_bandit_iter, lamb_da=l,
                                                 train_items=None,
                                                 user_emb=None,
-                                                cate_sim=None)
+                                                cate_sim=movie_cate_sim)
                 print(prec)
-                # print(rec)
-                # print(div)
                 test_precision += prec
                 test_recall += rec
                 test_diversity += div
@@ -275,18 +259,16 @@ if __name__ == '__main__':
                                                 num=args.num_bandit_iter, lamb_da=l,
                                                 train_items=None,
                                                 user_emb=None,
-                                                cate_sim=None)
+                                                cate_sim=movie_cate_sim)
                 print(user)
                 print(prec)
-                # print(rec)
-                # print(div)
                 test_precision_low += prec
                 test_recall_low += rec
                 test_diversity_low += div
                 test_cate_diversity_low += cate_div
                 length_low += 1
             
-        print("theta:{0}, ".format(theta))
+        print("l:{0}, ".format(l))
         print("test_precision:{0}".format(test_precision / length))
         print("test_recall:{0}".format(test_recall / length))
         print("test_diversity:{0}".format(test_diversity / length))

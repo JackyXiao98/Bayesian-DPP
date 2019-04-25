@@ -128,8 +128,14 @@ def c2ucb(movie_embs, train_items, test_items, args, num, sim=None, lamb_da=100,
     cate_div = []
     all_items = set(range(num_movies))
 
-    can_items = all_items - set(train_items)
+    # can_items = all_items - set(train_items)
+    can_items = all_items
     cur_total_reward = 0
+    
+    # feature normalization
+    nor_embs = movie_embs.T.copy()
+    for i in range(num_movies):
+        nor_embs[i, :] = nor_embs[i, :] / np.linalg.norm(nor_embs[i, :])
 
     for t in range(num):
 
@@ -164,11 +170,6 @@ def c2ucb(movie_embs, train_items, test_items, args, num, sim=None, lamb_da=100,
         matrix_v = matrix_v + np.dot(x, x.T)
 
         reward = np.array([1.0 if i in test_items else 0.0 for i in s_inx])
-
-        # if args.off_line_eval:
-        #     reward = np.array([1.0 if i in test_items else 0.0 for i in s_inx])
-        # else:
-        #     reward = online_result(movie_embs.T, user_emb, s_inx)
 
         cur_total_reward += np.sum(reward)
 
@@ -227,6 +228,10 @@ def eval(args):
         output_path = logging(file_name, verbose=2)
         
     user_embs, movie_embs, movie_cate_sim, Tr, Te = load_data(args)
+    hidden_dim, num_movies = movie_embs.shape
+    nor_embs = movie_embs.T.copy()
+    for i in range(num_movies):
+        nor_embs[i, :] = nor_embs[i, :] / np.linalg.norm(nor_embs[i, :])
     sim_mat = np.dot(movie_embs, movie_embs.T)
     lamda_list = [0.1]
 
@@ -248,8 +253,11 @@ def eval(args):
         t1 = time.clock()
 
         for user in test_users:
-            prec, recall, div, cate_div, reward, s_inx0 = c2ucb(movie_embs.T, Tr[user], Te[user],
-                                              args, num=args.num_bandit_iter, sim=sim_mat, cate_sim=movie_cate_sim, user_emb=user_embs[user, :])
+            prec, recall, div, cate_div, reward, s_inx0 = c2ucb(movie_embs.T, None, Te[user],
+                                              args, num=args.num_bandit_iter,
+                                                                sim=sim_mat,
+                                                                cate_sim=movie_cate_sim,
+                                                                user_emb=None)
             print(user)
             print(prec)
             test_precision += prec
@@ -264,22 +272,8 @@ def eval(args):
         test_cate_div = test_cate_div / num_test_users
         test_reward = test_reward / num_test_users
 
-        # table.write(0 + 4*i, 0, 'process for lamda: '+str(lamda_list[i]))
-        # table.write(1 + 4*i, 0, 'precision')
-        # table.write(2 + 4*i, 0, 'diversity')
-        # table.write(3 + 4*i, 0, 'cate_diversity')
-        # table.write(4 + 4 * i, 0, 'recall')
-        # for j in range(len(row0)):
-        #     table.write(0 + 4 * i, j + 1, row0[j] + 1)
-        #     table.write(1 + 4 * i, j + 1, test_precision[j])
-        #     table.write(2 + 4 * i, j + 1, test_div[j])
-        #     table.write(3 + 4 * i, j + 1, test_cate_div[j])
-        #     table.write(4 + 4 * i, j + 1, test_recall[j])
-
         print("lambda:{0}\ntest_precision:{1}\ntest_recall:{2}\ntest_div:{3}\ntest_cate_div:{4}\ntest_reward:{5}".format(args.lam_da, test_precision, test_recall, test_div, test_cate_div, test_reward))
         print("time used:%s\n" % (time.clock() - t1))
-
-    # file.save('cucb result.xlsx')
 
 
 if __name__ == '__main__':
@@ -287,22 +281,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="c2ucb for recommendation")
 
     parser.add_argument('--off_line_eval', default=1)
-    parser.add_argument('--lam_da', default=10.0)
+    parser.add_argument('--lam_da', default=0.1)
     parser.add_argument('--sigma', default=1.)
-    parser.add_argument('--num_recommendation', default=5)
+    parser.add_argument('--num_recommendation', default=10)
     parser.add_argument('--num_bandit_iter', default=10)
 
     # ml-1m data
-    parser.add_argument('--is_log', default=True)
-    parser.add_argument('--train_file', default='ml_1m_0.8/ml-1m_tmp_0.8_10_train.txt',
+    parser.add_argument('--is_log', default=False)
+    parser.add_argument('--train_file', default='ml_1m_user_new/ml-1m_user_0.8_train.txt',
                         help='the training file')
-    parser.add_argument('--test_file', default='ml_1m_0.8/ml-1m_tmp_0.8_10_test.txt',
+    parser.add_argument('--test_file', default='ml_1m_user_new/ml-1m_user_0.8_test.txt',
                         help='the testing file')
-    parser.add_argument('--user_emb_file', default='ml_1m_0.8/lmf_ml-1m_tmp_0.8_10_dim10_user_embs.npy',
+    parser.add_argument('--user_emb_file', default='ml_1m_user_new/bpr_ml-1m_user_0.8_dim10_user_embs.npy',
                         help='the user embedding file')
-    parser.add_argument('--movie_emb_file', default='ml_1m_0.8/lmf_ml-1m_tmp_0.8_10_dim10_item_embs.npy',
+    parser.add_argument('--movie_emb_file', default='ml_1m_user_new/bpr_ml-1m_user_0.8_dim10_item_embs.npy',
                         help='the movie embedding file')
-    parser.add_argument('--movie_sim_file', default='ml_1m_0.8/ml-1m_tmp_0.8_10_item_sim.npy',
+    parser.add_argument('--movie_sim_file', default='ml_1m_user_new/ml-1m_user_0.8_item_sim.npy',
                         help='the movie embedding file')
 
     args = parser.parse_args()
