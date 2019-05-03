@@ -80,8 +80,7 @@ def bayes_greedy_map(scores, movie_embs, K, theta):
 
     D = vec * vec
     D = D * np.sum(movie_embs * movie_embs, axis=1)
-    # D = np.sum(movie_embs * movie_embs, axis=1)
-    j = np.argmax(D + np.log(rho(scores)))
+    j = np.argmax(D * rho(scores))
     Y = [j]  # the selected set
     m = scores.shape[0]
     Z = set(range(m))  # the remained items
@@ -102,7 +101,7 @@ def bayes_greedy_map(scores, movie_embs, K, theta):
             D[i] = D[i] - ei ** 2
         ii = np.array(list(Z))
         # greedy search for the next item
-        jj = np.argmax(np.log(D[ii]) + np.log(rho(scores[ii])))
+        jj = np.argmax(D[ii] * rho(scores[ii]))
         j = ii[jj]
         Y.append(j)
     # pdb.set_trace()

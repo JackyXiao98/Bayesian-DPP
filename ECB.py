@@ -78,7 +78,6 @@ def diversity(s_inx, X):
 
 
 def greedy_search(r_c, r_e):
-
     D = rho(r_c) * rho(r_e)
     j = np.argmax(D)
     return j
